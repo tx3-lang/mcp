@@ -7,6 +7,7 @@ use tracing_subscriber::{
     {self},
 };
 
+#[path = "../tools/mod.rs"]
 mod tools;
 use tools::protocol::Protocol;
 
