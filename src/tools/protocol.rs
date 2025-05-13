@@ -92,6 +92,19 @@ impl ServerHandler for Protocol {
                     }),
                     input_schema: Arc::new(input_schema),
                 });
+
+                tools.push(Tool {
+                    name: std::borrow::Cow::Owned(format!("describe-{}-{}", protocol_name.clone(), tx.name)),
+                    description: Some(std::borrow::Cow::Owned(format!("Describes the transaction '{}' from the protocol '{}' and shows the required parameters", tx.name, protocol_name))),
+                    annotations: Some(ToolAnnotations {
+                        title: Some(format!("Describe {} {}", protocol_name, tx.name)),
+                        read_only_hint: Some(true),
+                        destructive_hint: Some(false),
+                        idempotent_hint: Some(false),
+                        open_world_hint: Some(true),
+                    }),
+                    input_schema: Arc::new(Map::new()),
+                });
             }
         }
         Ok(ListToolsResult { tools, next_cursor: None })
@@ -103,6 +116,16 @@ impl ServerHandler for Protocol {
         _context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
         let name = request.name.split("-").collect::<Vec<&str>>();
+
+        let operation_name = name.get(0)
+            .ok_or_else(|| {
+                McpError::new(
+                    ErrorCode::RESOURCE_NOT_FOUND,
+                    format!("Operation not found"),
+                    None,
+                )
+            })
+            .unwrap().to_string();
 
         let protocol_name = name.get(1)
             .ok_or_else(|| {
@@ -145,11 +168,23 @@ impl ServerHandler for Protocol {
             prototx_result.unwrap()
         };
 
+        let parameters_types = prototx.find_params();
+
+        if operation_name == "describe" {
+            let mut parameters = Map::new();
+            for (param_name, param_type) in parameters_types.iter() {
+                parameters.insert(param_name.clone(), serde_json::Value::String(format!("{:?}", param_type)));
+            }
+            let mut response = Map::new();
+            response.insert("protocol".to_string(), serde_json::Value::String(protocol_name));
+            response.insert("transaction".to_string(), serde_json::Value::String(transaction_name));
+            response.insert("parameters".to_string(), serde_json::Value::Object(parameters));
+            return Ok(CallToolResult::success(vec![Content::json(response)?]));
+        }
+
         let parameters = request.arguments.is_some()
             .then(|| request.arguments.unwrap())
             .unwrap_or_default();
-
-        let parameters_types = prototx.find_params();
 
         let mut args: HashMap<String, tx3_lang::ArgValue> = HashMap::new();
         for (arg_name, value) in parameters.iter() {
@@ -204,7 +239,7 @@ impl ServerHandler for Protocol {
             tir: TirInfo {
                 bytecode: hex::encode(prototx.ir_bytes()),
                 encoding: "hex".to_string(),
-                version: "v1alpha1".to_string(),
+                version: tx3_lang::ir::IR_VERSION.to_string(),
             },
             args: serde_json::to_value(args).unwrap()
         }).await;
@@ -237,7 +272,7 @@ impl ServerHandler for Protocol {
 
     fn complete(
         &self,
-        _request: CompleteRequestParam,
+        _request: CompleteRequestParam, 
         _context: RequestContext<RoleServer>,
     ) -> impl Future<Output = Result<CompleteResult, McpError>> + Send + '_ {
         std::future::ready(Err(McpError::method_not_found::<CompleteRequestMethod>()))

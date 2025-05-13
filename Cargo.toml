@@ -13,7 +13,7 @@ serde_json = "1.0.140"
 tokio = { version = "1.44.2", features = ["rt-multi-thread", "signal"] }
 tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
 tx3-sdk = { git = "https://github.com/tx3-lang/rust-sdk.git" }
-tx3-lang = "0.2.0"
+tx3-lang = "0.4.1"
 tracing = "0.1.41"
 
 [[bin]]
