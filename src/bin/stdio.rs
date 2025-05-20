@@ -6,12 +6,13 @@ use tracing_subscriber::{self, EnvFilter};
 
 #[path = "../tools/mod.rs"]
 mod tools;
-use tools::protocol::Protocol;
+use tools::protocol::ProtocolTool;
 
 #[tokio::main]
 async fn main() -> Result<()> {
     dotenv().ok();
 
+    let registry_url = env::var("TX3_REGISTRY_URL").expect("TX3_REGISTRY_URL must be set in the environment");
     let trp_url = env::var("TRP_URL").expect("TRP_URL must be set in the environment");
     let trp_key = env::var("TRP_KEY").expect("TRP_KEY must be set in the environment");
 
@@ -23,7 +24,7 @@ async fn main() -> Result<()> {
 
     tracing::info!("Starting MCP server");
 
-    let service = Protocol::new(&trp_url, &trp_key).serve(stdio()).await.inspect_err(|e| {
+    let service = ProtocolTool::new(&registry_url, &trp_url, &trp_key).serve(stdio()).await.inspect_err(|e| {
         tracing::error!("serving error: {:?}", e);
     })?;
 

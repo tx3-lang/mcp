@@ -1,0 +1,123 @@
+
+type Dapp {
+	id: ID!
+	name: String!
+	scope: String!
+	repositoryUrl: String
+	blueprintUrl: String
+	protocolUrl: String
+	publishedDate: Int!
+	version: String!
+	readme: String
+	protocol: String
+	blueprint: DappBlueprint
+}
+
+type DappBlueprint {
+	description: String!
+	version: String!
+	license: String!
+	compilerName: String!
+	compilerVersion: String!
+	plutusVersion: String!
+	validators: [DappValidator!]!
+	schemas: [DappSchema!]!
+	codegen(template: String!): String!
+}
+
+type DappConnection {
+	"""
+	Information to aid in pagination.
+	"""
+	pageInfo: PageInfo!
+	"""
+	A list of edges.
+	"""
+	edges: [DappEdge!]!
+	"""
+	A list of nodes.
+	"""
+	nodes: [Dapp!]!
+	metadata: PaginationInfo
+}
+
+"""
+An edge in a connection.
+"""
+type DappEdge {
+	"""
+	The item at the end of the edge
+	"""
+	node: Dapp!
+	"""
+	A cursor for use in pagination
+	"""
+	cursor: String!
+}
+
+type DappReference {
+	name: String
+	schemaName: String!
+}
+
+type DappSchema {
+	name: String!
+	schema: String!
+}
+
+enum DappSort {
+	ALPHABETIC_ASC
+	ALPHABETIC_DSC
+	UPDATE_TIME
+	RELEVANCE
+	DOWNLOADS
+}
+
+type DappValidator {
+	name: String!
+	datum: DappReference
+	redeemer: DappReference
+	parameters: [DappReference!]!
+}
+
+
+
+
+"""
+Information about pagination in a connection
+"""
+type PageInfo {
+	"""
+	When paginating backwards, are there more items?
+	"""
+	hasPreviousPage: Boolean!
+	"""
+	When paginating forwards, are there more items?
+	"""
+	hasNextPage: Boolean!
+	"""
+	When paginating backwards, the cursor to continue.
+	"""
+	startCursor: String
+	"""
+	When paginating forwards, the cursor to continue.
+	"""
+	endCursor: String
+}
+
+type PaginationInfo {
+	totalNodes: Int!
+	pageSize: Int!
+}
+
+type Query {
+	dapps(pageSize: Int, offset: Int, search: String, sortBy: DappSort): DappConnection!
+	dapp(scope: String!, name: String!): Dapp
+}
+
+
+directive @include(if: Boolean!) on FIELD | FRAGMENT_SPREAD | INLINE_FRAGMENT
+directive @skip(if: Boolean!) on FIELD | FRAGMENT_SPREAD | INLINE_FRAGMENT
+schema {
+	query: Query
+}

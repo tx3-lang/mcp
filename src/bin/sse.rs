@@ -9,14 +9,15 @@ use tracing_subscriber::{
 
 #[path = "../tools/mod.rs"]
 mod tools;
-use tools::protocol::Protocol;
+use tools::protocol::ProtocolTool;
 
-const BIND_ADDRESS: &str = "127.0.0.1:3000";
+const BIND_ADDRESS: &str = "127.0.0.1:3001";
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     dotenv().ok();
 
+    let registry_url = env::var("TX3_REGISTRY_URL").expect("TX3_REGISTRY_URL must be set in the environment");
     let trp_url = env::var("TRP_URL").expect("TRP_URL must be set in the environment");
     let trp_key = env::var("TRP_KEY").expect("TRP_KEY must be set in the environment");
 
@@ -30,7 +31,7 @@ async fn main() -> anyhow::Result<()> {
 
     let ct = SseServer::serve(BIND_ADDRESS.parse()?)
         .await?
-        .with_service(move || Protocol::new(&trp_url, &trp_key));
+        .with_service(move || ProtocolTool::new(&registry_url, &trp_url, &trp_key));
 
     tokio::signal::ctrl_c().await?;
     ct.cancel();
