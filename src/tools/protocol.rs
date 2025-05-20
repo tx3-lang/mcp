@@ -1,47 +1,79 @@
-use std::fs;
 use std::sync::Arc;
 use std::collections::HashMap;
 use serde_json::Map;
 use rmcp::{Error as McpError, ServerHandler, RoleServer, tool};
 use rmcp::service::{RequestContext, Peer};
 use rmcp::model::*;
+use cynic;
+use cynic::QueryBuilder;
+use cynic::http::SurfExt;
 use tx3_sdk::trp::{Client as TrpClient, ClientOptions, ProtoTxRequest, TirInfo};
+
+#[cynic::schema("tx3")]
+mod schema {}
+
+#[derive(cynic::QueryFragment, Debug)]
+#[cynic(graphql_type = "Query")]
+pub struct ProtocolsQuery {
+    pub dapps: DappConnection,
+}
+
+#[derive(cynic::QueryFragment, Debug)]
+pub struct DappConnection {
+    pub nodes: Vec<Dapp>,
+}
+
+#[derive(cynic::QueryFragment, Debug)]
+pub struct Dapp {
+    pub scope: String,
+    pub name: String,
+    pub protocol: Option<String>,
+}
+
 
 #[derive(Clone)]
 pub struct Protocol {
-    protocols: HashMap<String, String>,
+    name: String,
+    content: String,
+}
+
+#[derive(Clone)]
+pub struct ProtocolTool {
+    registry_url: String,
     trp_url: String,
     trp_key: String,
 }
 
 #[tool(tool_box)]
-impl Protocol {
+impl ProtocolTool {
     #[allow(dead_code)]
-    pub fn new(trp_url: &str, trp_key: &str) -> Self {
-        let mut protocols = HashMap::new();
-        let paths = fs::read_dir("./protocols").unwrap();
-        for path in paths {
-            let path = path.unwrap();
-            if path.file_name().to_str().unwrap().ends_with(".tx3") {
-                let message = fs::read_to_string(path.path());
-                if message.is_err() {
-                    continue;
-                }
-                
-                let name = path.file_name().to_str().unwrap().replace(".tx3", "");
-                protocols.insert(name, message.ok().unwrap());
-            }
-        }
-
+    pub fn new(registry_url: &str, trp_url: &str, trp_key: &str) -> Self {
         Self {
-            protocols: protocols,
+            registry_url: registry_url.to_string(),
             trp_url: trp_url.to_string(),
             trp_key: trp_key.to_string(),
         }
     }
+
+    async fn run_protocols_query(&self) -> Vec<Protocol> {
+        let query = ProtocolsQuery::build({});
+        let response = surf::post(self.registry_url.clone()).run_graphql(query).await.unwrap().data;
+        match response {
+            Some(data) => data.dapps.nodes.into_iter()
+                .filter(|dapp| dapp.protocol.is_some())
+                .map(|dapp| {
+                    Protocol {
+                        name: format!("{}_{}", dapp.scope, dapp.name),
+                        content: dapp.protocol.unwrap(),
+                    }
+                })
+                .collect(),
+            None => Vec::new(),
+        }
+    }
 }
 
-impl ServerHandler for Protocol {
+impl ServerHandler for ProtocolTool {
     fn get_info(&self) -> ServerInfo {
         ServerInfo {
             protocol_version: ProtocolVersion::V_2024_11_05,
@@ -58,14 +90,17 @@ impl ServerHandler for Protocol {
         _request: Option<PaginatedRequestParam>,
         _context: RequestContext<RoleServer>,
     ) -> Result<ListToolsResult, McpError> {
+
+        let protocols = self.run_protocols_query().await;
+
         let mut property = Map::new();
         property.insert("type".to_string(), serde_json::Value::String("string".to_string()));
 
         let mut tools = Vec::new();
-        for (protocol_name, protocol_string) in self.protocols.iter() {
-            let protocol = tx3_lang::Protocol::from_string(protocol_string.to_string()).load().unwrap();
-            for tx in protocol.txs() {
-                let prototx = protocol.new_tx(tx.name.as_str()).unwrap();
+        for protocol in protocols.iter() {
+            let tx3_protocol = tx3_lang::Protocol::from_string(protocol.content.to_string()).load().unwrap();
+            for tx in tx3_protocol.txs() {
+                let prototx = tx3_protocol.new_tx(tx.name.as_str()).unwrap();
                 let mut properties = Map::new();
                 let mut required = Vec::new();
                 for param in prototx.find_params() {
@@ -76,15 +111,15 @@ impl ServerHandler for Protocol {
                 let mut input_schema = Map::new();
                 input_schema.insert("type".to_string(), serde_json::Value::String("object".to_string()));
                 input_schema.insert("$schema".to_string(), serde_json::Value::String("http://json-schema.org/draft-07/schema#".to_string()));
-                input_schema.insert("title".to_string(), serde_json::Value::String(format!("resolve_{}_{}_params", protocol_name.clone(), tx.name)));
+                input_schema.insert("title".to_string(), serde_json::Value::String(format!("resolve_{}_{}_params", protocol.name.clone(), tx.name)));
                 input_schema.insert("properties".to_string(), serde_json::Value::Object(properties));
                 input_schema.insert("required".to_string(), serde_json::Value::Array(required));
 
                 tools.push(Tool {
-                    name: std::borrow::Cow::Owned(format!("resolve-{}-{}", protocol_name.clone(), tx.name)),
-                    description: Some(std::borrow::Cow::Owned(format!("Resolves the transaction '{}' from the protocol '{}'", tx.name, protocol_name))),
+                    name: std::borrow::Cow::Owned(format!("resolve-{}-{}", protocol.name.clone(), tx.name)),
+                    description: Some(std::borrow::Cow::Owned(format!("Resolves the transaction '{}' from the protocol '{}'", tx.name, protocol.name))),
                     annotations: Some(ToolAnnotations {
-                        title: Some(format!("Resolve {} {}", protocol_name, tx.name)),
+                        title: Some(format!("Resolve {} {}", protocol.name, tx.name)),
                         read_only_hint: Some(true),
                         destructive_hint: Some(false),
                         idempotent_hint: Some(false),
@@ -94,10 +129,10 @@ impl ServerHandler for Protocol {
                 });
 
                 tools.push(Tool {
-                    name: std::borrow::Cow::Owned(format!("describe-{}-{}", protocol_name.clone(), tx.name)),
-                    description: Some(std::borrow::Cow::Owned(format!("Describes the transaction '{}' from the protocol '{}' and shows the required parameters", tx.name, protocol_name))),
+                    name: std::borrow::Cow::Owned(format!("describe-{}-{}", protocol.name.clone(), tx.name)),
+                    description: Some(std::borrow::Cow::Owned(format!("Describes the transaction '{}' from the protocol '{}' and shows the required parameters", tx.name, protocol.name))),
                     annotations: Some(ToolAnnotations {
-                        title: Some(format!("Describe {} {}", protocol_name, tx.name)),
+                        title: Some(format!("Describe {} {}", protocol.name, tx.name)),
                         read_only_hint: Some(true),
                         destructive_hint: Some(false),
                         idempotent_hint: Some(false),
@@ -147,7 +182,8 @@ impl ServerHandler for Protocol {
             })
             .unwrap().to_string();
 
-        let protocol_string = self.protocols.get(&protocol_name).ok_or_else(|| {
+        let protocols = self.run_protocols_query().await;
+        let protocol = protocols.iter().find(|p| p.name == protocol_name).ok_or_else(|| {
             McpError::new(
                 ErrorCode::RESOURCE_NOT_FOUND,
                 format!("Protocol {} not found", protocol_name),
@@ -156,8 +192,8 @@ impl ServerHandler for Protocol {
         }).unwrap();
 
         let prototx = {
-            let protocol = tx3_lang::Protocol::from_string(protocol_string.to_string()).load().unwrap();
-            let prototx_result = protocol.new_tx(transaction_name.as_str());
+            let tx3_protocol = tx3_lang::Protocol::from_string(protocol.content.to_string()).load().unwrap();
+            let prototx_result = tx3_protocol.new_tx(transaction_name.as_str());
             if prototx_result.is_err() {
                 return Err(McpError::new(
                     ErrorCode::RESOURCE_NOT_FOUND,
