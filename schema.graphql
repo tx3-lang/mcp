@@ -1,87 +1,7 @@
-
-type Dapp {
-	id: ID!
-	name: String!
-	scope: String!
-	repositoryUrl: String
-	blueprintUrl: String
-	protocolUrl: String
-	publishedDate: Int!
-	version: String!
-	readme: String
-	protocol: String
-	blueprint: DappBlueprint
-}
-
-type DappBlueprint {
-	description: String!
-	version: String!
-	license: String!
-	compilerName: String!
-	compilerVersion: String!
-	plutusVersion: String!
-	validators: [DappValidator!]!
-	schemas: [DappSchema!]!
-	codegen(template: String!): String!
-}
-
-type DappConnection {
-	"""
-	Information to aid in pagination.
-	"""
-	pageInfo: PageInfo!
-	"""
-	A list of edges.
-	"""
-	edges: [DappEdge!]!
-	"""
-	A list of nodes.
-	"""
-	nodes: [Dapp!]!
-	metadata: PaginationInfo
-}
-
 """
-An edge in a connection.
+A scalar that can represent any JSON Object value.
 """
-type DappEdge {
-	"""
-	The item at the end of the edge
-	"""
-	node: Dapp!
-	"""
-	A cursor for use in pagination
-	"""
-	cursor: String!
-}
-
-type DappReference {
-	name: String
-	schemaName: String!
-}
-
-type DappSchema {
-	name: String!
-	schema: String!
-}
-
-enum DappSort {
-	ALPHABETIC_ASC
-	ALPHABETIC_DSC
-	UPDATE_TIME
-	RELEVANCE
-	DOWNLOADS
-}
-
-type DappValidator {
-	name: String!
-	datum: DappReference
-	redeemer: DappReference
-	parameters: [DappReference!]!
-}
-
-
-
+scalar JSONObject
 
 """
 Information about pagination in a connection
@@ -110,13 +30,76 @@ type PaginationInfo {
 	pageSize: Int!
 }
 
-type Query {
-	dapps(pageSize: Int, offset: Int, search: String, sortBy: DappSort): DappConnection!
-	dapp(scope: String!, name: String!): Dapp
+type Protocol {
+	id: ID!
+	name: String!
+	scope: String!
+	repositoryUrl: String
+	publishedDate: Int!
+	version: String!
+	readme: String
+	source: String
+	description: String
+	transactions: [Tx!]!
 }
 
+type ProtocolConnection {
+	"""
+	Information to aid in pagination.
+	"""
+	pageInfo: PageInfo!
+	"""
+	A list of edges.
+	"""
+	edges: [ProtocolEdge!]!
+	"""
+	A list of nodes.
+	"""
+	nodes: [Protocol!]!
+	metadata: PaginationInfo
+}
 
+"""
+An edge in a connection.
+"""
+type ProtocolEdge {
+	"""
+	The item at the end of the edge
+	"""
+	node: Protocol!
+	"""
+	A cursor for use in pagination
+	"""
+	cursor: String!
+}
+
+enum ProtocolSort {
+	ALPHABETIC_ASC
+	ALPHABETIC_DSC
+	UPDATE_TIME
+	RELEVANCE
+	DOWNLOADS
+}
+
+type Query {
+	protocols(pageSize: Int, offset: Int, search: String, sortBy: ProtocolSort): ProtocolConnection!
+	protocol(scope: String!, name: String!): Protocol
+}
+
+type Tx {
+	name: String!
+	parameters: JSONObject!
+	tir: String!
+	tirVersion: String!
+}
+
+"""
+Directs the executor to include this field or fragment only when the `if` argument is true.
+"""
 directive @include(if: Boolean!) on FIELD | FRAGMENT_SPREAD | INLINE_FRAGMENT
+"""
+Directs the executor to skip this field or fragment when the `if` argument is true.
+"""
 directive @skip(if: Boolean!) on FIELD | FRAGMENT_SPREAD | INLINE_FRAGMENT
 schema {
 	query: Query

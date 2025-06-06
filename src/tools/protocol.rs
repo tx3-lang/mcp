@@ -15,24 +15,24 @@ mod schema {}
 #[derive(cynic::QueryFragment, Debug)]
 #[cynic(graphql_type = "Query")]
 pub struct ProtocolsQuery {
-    pub dapps: DappConnection,
+    pub protocols: ProtocolConnection,
 }
 
 #[derive(cynic::QueryFragment, Debug)]
-pub struct DappConnection {
-    pub nodes: Vec<Dapp>,
+pub struct ProtocolConnection {
+    pub nodes: Vec<Protocol>,
 }
 
 #[derive(cynic::QueryFragment, Debug)]
-pub struct Dapp {
+pub struct Protocol {
     pub scope: String,
     pub name: String,
-    pub protocol: Option<String>,
+    pub source: Option<String>,
 }
 
 
 #[derive(Clone)]
-pub struct Protocol {
+pub struct ProtocolSource {
     name: String,
     content: String,
 }
@@ -55,16 +55,16 @@ impl ProtocolTool {
         }
     }
 
-    async fn run_protocols_query(&self) -> Vec<Protocol> {
+    async fn run_protocols_query(&self) -> Vec<ProtocolSource> {
         let query = ProtocolsQuery::build({});
         let response = surf::post(self.registry_url.clone()).run_graphql(query).await.unwrap().data;
         match response {
-            Some(data) => data.dapps.nodes.into_iter()
-                .filter(|dapp| dapp.protocol.is_some())
-                .map(|dapp| {
-                    Protocol {
-                        name: format!("{}_{}", dapp.scope, dapp.name),
-                        content: dapp.protocol.unwrap(),
+            Some(data) => data.protocols.nodes.into_iter()
+                .filter(|protocol| protocol.source.is_some())
+                .map(|protocol| {
+                    ProtocolSource {
+                        name: format!("{}_{}", protocol.scope, protocol.name),
+                        content: protocol.source.unwrap(),
                     }
                 })
                 .collect(),
@@ -90,7 +90,6 @@ impl ServerHandler for ProtocolTool {
         _request: Option<PaginatedRequestParam>,
         _context: RequestContext<RoleServer>,
     ) -> Result<ListToolsResult, McpError> {
-
         let protocols = self.run_protocols_query().await;
 
         let mut property = Map::new();
@@ -98,7 +97,13 @@ impl ServerHandler for ProtocolTool {
 
         let mut tools = Vec::new();
         for protocol in protocols.iter() {
-            let tx3_protocol = tx3_lang::Protocol::from_string(protocol.content.to_string()).load().unwrap();
+            let tx3_protocol_load = tx3_lang::Protocol::from_string(protocol.content.to_string()).load();
+            if tx3_protocol_load.is_err() {
+                tracing::warn!("Failed to load protocol {}", protocol.name);
+                continue;
+            }
+
+            let tx3_protocol = tx3_protocol_load.unwrap();
             for tx in tx3_protocol.txs() {
                 let prototx = tx3_protocol.new_tx(tx.name.as_str()).unwrap();
                 let mut properties = Map::new();
