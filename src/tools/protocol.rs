@@ -2,7 +2,7 @@ use std::sync::Arc;
 use std::collections::HashMap;
 use serde_json::Map;
 use rmcp::{Error as McpError, ServerHandler, RoleServer, tool};
-use rmcp::service::{RequestContext, Peer};
+use rmcp::service::RequestContext;
 use rmcp::model::*;
 use cynic;
 use cynic::QueryBuilder;
@@ -277,7 +277,7 @@ impl ServerHandler for ProtocolTool {
                 encoding: "hex".to_string(),
                 version: tx3_lang::ir::IR_VERSION.to_string(),
             },
-            args: serde_json::to_value(args).unwrap()
+            args
         }).await;
 
         if result.is_err() {
@@ -383,6 +383,7 @@ impl ServerHandler for ProtocolTool {
     fn on_cancelled(
         &self,
         _notification: CancelledNotificationParam,
+        _context: rmcp::service::NotificationContext<RoleServer>,
     ) -> impl Future<Output = ()> + Send + '_ {
         std::future::ready(())
     }
@@ -390,23 +391,23 @@ impl ServerHandler for ProtocolTool {
     fn on_progress(
         &self,
         _notification: ProgressNotificationParam,
+        _context: rmcp::service::NotificationContext<RoleServer>,
     ) -> impl Future<Output = ()> + Send + '_ {
         std::future::ready(())
     }
 
-    fn on_initialized(&self) -> impl Future<Output = ()> + Send + '_ {
+    fn on_initialized(
+        &self,
+        _context: rmcp::service::NotificationContext<RoleServer>,
+    ) -> impl Future<Output = ()> + Send + '_ {
+        tracing::info!("client initialized");
         std::future::ready(())
     }
 
-    fn on_roots_list_changed(&self) -> impl Future<Output = ()> + Send + '_ {
+    fn on_roots_list_changed(
+        &self,
+        _context: rmcp::service::NotificationContext<RoleServer>,
+    ) -> impl Future<Output = ()> + Send + '_ {
         std::future::ready(())
-    }
-
-    fn get_peer(&self) -> Option<Peer<RoleServer>> {
-        None
-    }
-
-    fn set_peer(&mut self, peer: Peer<RoleServer>) {
-        drop(peer);
     }
 }
