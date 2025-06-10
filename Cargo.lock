@@ -3157,8 +3157,9 @@ checksum = "e421abadd41a4225275504ea4d6566923418b7f05506fbc9c0fe86ba7396114b"
 
 [[package]]
 name = "tx3-lang"
-version = "0.5.0"
-source = "git+https://github.com/tx3-lang/tx3#9ae78dca16a0a004f4fb52417a8e6c9d98ed17ec"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3fff1648f3f0a1310dd1a51cc696d02d69119561c6cbb500fb4de96346837392"
 dependencies = [
  "bincode",
  "hex",
@@ -3192,7 +3193,7 @@ dependencies = [
 [[package]]
 name = "tx3-sdk"
 version = "0.1.0"
-source = "git+https://github.com/tx3-lang/rust-sdk#41b7cd94531ffc2e9cb8dd7ce765e4f011c25ddd"
+source = "git+https://github.com/tx3-lang/rust-sdk?rev=d837e21#d837e2150f6b8cc3fc8245c219491c55afb664c0"
 dependencies = [
  "hex",
  "reqwest",

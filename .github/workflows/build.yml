@@ -1,4 +1,6 @@
 name: Build
+permissions:
+  packages: write
 
 on:
   workflow_dispatch: {}
@@ -24,4 +26,4 @@ jobs:
           file: docker/Dockerfile
           platforms: linux/amd64
           push: true
-          tags: ghcr.io/txpipe/tx3-mcp:${{ github.sha }}
+          tags: ghcr.io/tx3-lang/tx3-mcp:${{ github.sha }}
